@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard de Avaliações - Fábricas de Cultura</title>
+  
+  <!-- Bibliotecas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.1.1/wordcloud2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  
+  <style>
+    :root {
+      --cor-primaria: #4B0082;
+      --cor-secundaria: #6a0099;
+      --cor-fundo: #f8f9fa;
+      --cor-texto: #333;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--cor-fundo);
+      color: var(--cor-texto);
+      margin: 0;
+      padding: 0;
+    }
+    
+    .header {
+      background-color: var(--cor-primaria);
+      color: white;
+      padding: 20px 0;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+      padding: 0 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .filters-panel {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      height: fit-content;
+      position: sticky;
+      top: 20px;
+    }
+    
+    .main-content {
+      display: grid;
+      gap: 20px;
+    }
+    
+    .card {
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border: none;
+      overflow: hidden;
+      background: white;
+    }
+    
+    .card-header {
+      background-color: var(--cor-primaria);
+      color: white;
+      font-weight: 600;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    #nuvem-container {
+      height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    #comentarios-container {
+      max-height: 500px;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    
+    .comentario {
+      padding: 15px;
+      margin-bottom: 15px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid var(--cor-primaria);
+      transition: all 0.2s;
+    }
+    
+    .comentario:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    }
+    
+    .nota-badge {
+      background-color: var(--cor-primaria);
+      color: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 8px;
+      font-size: 14px;
+    }
+    
+    .unidade-badge {
+      background-color: var(--cor-secundaria);
+      color: white;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--cor-primaria);
+    }
+    
+    .chart-container {
+      height: 250px;
+      margin-bottom: 20px;
+    }
+    
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+      padding: 40px;
+    }
+    
+    @media (max-width: 992px) {
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+      
+      .filters-panel {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="display-6 mb-0">Dashboard de Avaliações</h1>
+          <p class="mb-0">Fábricas de Cultura</p>
+        </div>
+        <div id="unidade-selecionada" class="badge bg-light text-dark fs-6"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container dashboard-container">
+    <!-- Painel de Filtros -->
+    <div class="filters-panel">
+      <h5 class="mb-3"><i class="bi bi-funnel"></i> Filtros</h5>
+      
+      <div class="mb-3">
+        <label class="form-label">Unidade</label>
+        <select id="unidade-filter" class="form-select">
+          <option value="todas">Todas as Unidades</option>
+          <!-- Opções serão preenchidas dinamicamente -->
+        </select>
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Período</label>
+        <select id="periodo-filter" class="form-select">
+          <option value="all">Todo o período</option>
+          <option value="week">Última semana</option>
+          <option value="month">Último mês</option>
+          <option value="quarter">Último trimestre</option>
+        </select>
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Nota mínima</label>
+        <select id="nota-filter" class="form-select">
+          <option value="0">Todas as notas</option>
+          <option value="8">8 ou mais</option>
+          <option value="9">9 ou mais</option>
+          <option value="10">10</option>
+        </select>
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Palavra-chave</label>
+        <input type="text" id="palavra-filter" placeholder="Filtrar palavras..." class="form-control">
+      </div>
+      
+      <button id="reset-filters" class="btn btn-outline-secondary w-100 mt-2">
+        <i class="bi bi-arrow-counterclockwise"></i> Limpar filtros
+      </button>
+      
+      <div class="mt-4 pt-3 border-top">
+        <small class="text-muted">Atualizado em: <span id="data-atualizacao"></span></small>
+      </div>
+    </div>
+    
+    <!-- Conteúdo Principal -->
+    <div class="main-content">
+      <!-- Estatísticas -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="total-avaliacoes">0</div>
+          <div>Avaliações</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="media-avaliacoes">0.0</div>
+          <div>Média de Notas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="total-comentarios">0</div>
+          <div>Comentários</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="percentual-10">0%</div>
+          <div>Notas 10</div>
+        </div>
+      </div>
+      
+      <!-- Gráficos -->
+      <div class="card">
+        <div class="card-header">
+          <span>Distribuição das Notas</span>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-light" data-chart-type="bar">
+              <i class="bi bi-bar-chart"></i>
+            </button>
+            <button class="btn btn-sm btn-light" data-chart-type="pie">
+              <i class="bi bi-pie-chart"></i>
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="notas-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Nuvem de Palavras -->
+      <div class="card">
+        <div class="card-header">
+          <span>Nuvem de Palavras dos Comentários</span>
+          <button id="export-nuvem" class="btn btn-sm btn-light">
+            <i class="bi bi-download"></i> Exportar
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="nuvem-container">
+            <div id="loading-nuvem" class="loading">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+              </div>
+            </div>
+            <canvas id="nuvem" width="800" height="400"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Comentários -->
+      <div class="card">
+        <div class="card-header">
+          <span>Comentários</span>
+          <small id="total-comentarios-header">0 itens</small>
+        </div>
+        <div id="comentarios-container">
+          <div id="loading-comentarios" class="loading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Carregando...</span>
+            </div>
+          </div>
+          <div id="comentarios-lista"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configurações
+    const config = {
+      sheetUrl: "https://docs.google.com/spreadsheets/d/e/SEU_ID_DA_PLANILHA/pub?output=csv",
+      wordCloud: {
+        gridSize: 12,
+        weightFactor: qtd => Math.sqrt(qtd) * 25,
+        fontFamily: "Segoe UI, Arial, sans-serif",
+        color: () => {
+          const colors = ['#4B0082', '#6a0099', '#8a2be2', '#9370db', '#9932cc'];
+          return colors[Math.floor(Math.random() * colors.length)];
+        },
+        backgroundColor: "#ffffff",
+        rotateRatio: 0.35,
+        rotationSteps: 3,
+        drawOutOfBound: false
+      },
+      stopWords: new Set(['de', 'a', 'o', 'que', 'e', 'do', 'da', 'em', 'um', 'para', 'com', 'não', 'uma', 'os', 'no', 'se', 'na', 'por', 'as', 'dos', 'como', 'mas', 'ao', 'ele', 'das', 'à', 'seu', 'sua', 'ou', 'quando', 'muito', 'nos', 'já', 'eu', 'também', 'só', 'pelo', 'pela', 'até', 'isso', 'ela', 'entre', 'depois', 'sem', 'mesmo', 'aos', 'seus', 'quem', 'nas', 'me', 'esse', 'eles', 'você', 'essa', 'num', 'nem', 'suas', 'meu', 'às', 'minha', 'numa', 'pelos', 'elas', 'qual', 'nosso', 'lhe', 'deles', 'essas', 'esses', 'pelas', 'este', 'dele', 'tu', 'te', 'vocês', 'vos', 'lhes', 'meus', 'minhas', 'teu', 'tua', 'teus', 'tuas', 'nosso', 'nossa', 'nossos', 'nossas', 'dela', 'delas', 'esta', 'estes', 'estas', 'aquele', 'aquela', 'aqueles', 'aquelas', 'isto', 'aquilo', 'estou', 'está', 'estamos', 'estão', 'estive', 'esteve', 'estivemos', 'estiveram', 'estava', 'estávamos', 'estavam', 'estivera', 'estivéramos', 'esteja', 'estejamos', 'estejam', 'estivesse', 'estivéssemos', 'estivessem', 'estiver', 'estivermos', 'estiverem', 'hei', 'há', 'havemos', 'hão', 'houve', 'houvemos', 'houveram', 'houvera', 'houvéramos', 'haja', 'hajamos', 'hajam', 'houvesse', 'houvéssemos', 'houvessem', 'houver', 'houvermos', 'houverem', 'houverei', 'houverá', 'houveremos', 'houverão', 'houveria', 'houveríamos', 'houveriam', 'sou', 'somos', 'são', 'era', 'éramos', 'eram', 'fui', 'foi', 'fomos', 'foram', 'fora', 'fôramos', 'seja', 'sejamos', 'sejam', 'fosse', 'fôssemos', 'fossem', 'for', 'formos', 'forem', 'serei', 'será', 'seremos', 'serão', 'seria', 'seríamos', 'seriam', 'tenho', 'tem', 'temos', 'têm', 'tinha', 'tínhamos', 'tinham', 'tive', 'teve', 'tivemos', 'tiveram', 'tivera', 'tivéramos', 'tenha', 'tenhamos', 'tenham', 'tivesse', 'tivéssemos', 'tivessem', 'tiver', 'tivermos', 'tiverem', 'terei', 'terá', 'teremos', 'terão', 'teria', 'teríamos', 'teriam'])
+    };
+
+    // Variáveis globais
+    let todosDados = [];
+    let unidades = new Set();
+    let notasChart = null;
+    let currentChartType = 'bar';
+
+    // Elementos DOM
+    const elements = {
+      unidadeFilter: document.getElementById('unidade-filter'),
+      periodoFilter: document.getElementById('periodo-filter'),
+      notaFilter: document.getElementById('nota-filter'),
+      palavraFilter: document.getElementById('palavra-filter'),
+      resetFilters: document.getElementById('reset-filters'),
+      unidadeSelecionada: document.getElementById('unidade-selecionada'),
+      dataAtualizacao: document.getElementById('data-atualizacao'),
+      
+      // Estatísticas
+      totalAvaliacoes: document.getElementById('total-avaliacoes'),
+      mediaAvaliacoes: document.getElementById('media-avaliacoes'),
+      totalComentarios: document.getElementById('total-comentarios'),
+      percentual10: document.getElementById('percentual-10'),
+      
+      // Gráficos
+      notasChart: document.getElementById('notas-chart'),
+      
+      // Nuvem de palavras
+      nuvemCanvas: document.getElementById('nuvem'),
+      nuvemContainer: document.getElementById('nuvem-container'),
+      loadingNuvem: document.getElementById('loading-nuvem'),
+      exportNuvem: document.getElementById('export-nuvem'),
+      
+      // Comentários
+      comentariosLista: document.getElementById('comentarios-lista'),
+      comentariosContainer: document.getElementById('comentarios-container'),
+      loadingComentarios: document.getElementById('loading-comentarios'),
+      totalComentariosHeader: document.getElementById('total-comentarios-header')
+    };
+
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {
+      // Atualiza data
+      elements.dataAtualizacao.textContent = new Date().toLocaleDateString('pt-BR');
+      
+      // Carrega dados
+      carregarDados();
+      
+      // Event listeners
+      elements.unidadeFilter.addEventListener('change', aplicarFiltros);
+      elements.periodoFilter.addEventListener('change', aplicarFiltros);
+      elements.notaFilter.addEventListener('change', aplicarFiltros);
+      elements.palavraFilter.addEventListener('input', aplicarFiltros);
+      elements.resetFilters.addEventListener('click', resetarFiltros);
+      elements.exportNuvem.addEventListener('click', exportarNuvem);
+      
+      // Botões do gráfico
+      document.querySelectorAll('[data-chart-type]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentChartType = btn.dataset.chartType;
+          atualizarGraficoNotas();
+        });
+      });
+    });
+
+    // Carregar dados da planilha
+    async function carregarDados() {
+      toggleLoading(true);
+      
+      try {
+        const response = await fetch(config.sheetUrl);
+        if (!response.ok) throw new Error('Erro ao carregar dados');
+        
+        const csvData = await response.text();
+        const { dados, unidades: unidadesPlanilha } = processarCSV(csvData);
+        
+        todosDados = dados;
+        unidades = unidadesPlanilha;
+        
+        // Preenche filtro de unidades
+        preencherFiltroUnidades();
+        
+        // Aplica filtros iniciais
+        aplicarFiltros();
+        
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao carregar dados. Verifique o console para detalhes.');
+      } finally {
+        toggleLoading(false);
+      }
+    }
+
+    // Processar CSV
+    function processarCSV(csv) {
+      const linhas = csv.split('\n');
+      const cabecalho = linhas[0].split(',');
+      const dados = [];
+      const unidades = new Set();
+      
+      // Encontra índices das colunas
+      const indices = {
+        comentario: cabecalho.findIndex(col => col.match(/comentário|comentario|texto|feedback/i)),
+        data: cabecalho.findIndex(col => col.match(/data|dia|timestamp|datahora/i)),
+        nota: cabecalho.findIndex(col => col.match(/nota|avaliação|avaliacao|rating|score/i)),
+        unidade: cabecalho.findIndex(col => col.match(/unidade|local|filial|fabrica/i))
+      };
+      
+      // Processa cada linha
+      for (let i = 1; i < linhas.length; i++) {
+        const linha = linhas[i].split(',');
+        if (linha.length < 2) continue;
+        
+        const item = {
+          texto: indices.comentario >= 0 ? linha[indices.comentario]?.trim() : '',
+          data: indices.data >= 0 ? linha[indices.data]?.trim() : null,
+          nota: indices.nota >= 0 ? parseFloat(linha[indices.nota]) || null : null,
+          unidade: indices.unidade >= 0 ? linha[indices.unidade]?.trim() || 'Não informado' : 'Não informado',
+          palavras: []
+        };
+        
+        // Extrai palavras do comentário
+        if (item.texto) {
+          item.palavras = extrairPalavras(item.texto);
+        }
+        
+        dados.push(item);
+        unidades.add(item.unidade);
+      }
+      
+      return { dados, unidades: Array.from(unidades).sort() };
+    }
+
+    // Extrair palavras de um texto
+    function extrairPalavras(texto) {
+      return texto.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?'"]/g, '')
+        .split(/\s+/)
+        .filter(palavra => 
+          palavra.length > 3 && 
+          !config.stopWords.has(palavra) && 
+          !/\d/.test(palavra)
+        );
+    }
+
+    // Preencher filtro de unidades
+    function preencherFiltroUnidades() {
+      elements.unidadeFilter.innerHTML = `
+        <option value="todas">Todas as Unidades</option>
+        ${Array.from(unidades).map(unidade => `
+          <option value="${unidade}">${unidade}</option>
+        `).join('')}
+      `;
+    }
+
+    // Aplicar filtros
+    function aplicarFiltros() {
+      const unidade = elements.unidadeFilter.value;
+      const periodo = elements.periodoFilter.value;
+      const notaMinima = parseInt(elements.notaFilter.value);
+      const palavraChave = elements.palavraFilter.value.toLowerCase();
+      
+      // Filtra por unidade
+      let dadosFiltrados = unidade === 'todas' 
+        ? [...todosDados] 
+        : todosDados.filter(item => item.unidade === unidade);
+      
+      // Filtra por período
+      if (periodo !== 'all') {
+        const hoje = new Date();
+        let dataLimite = new Date();
+        
+        switch (periodo) {
+          case 'week': dataLimite.setDate(hoje.getDate() - 7); break;
+          case 'month': dataLimite.setMonth(hoje.getMonth() - 1); break;
+          case 'quarter': dataLimite.setMonth(hoje.getMonth() - 3); break;
+        }
+        
+        dadosFiltrados = dadosFiltrados.filter(item => {
+          if (!item.data) return false;
+          try {
+            const dataItem = new Date(item.data);
+            return dataItem >= dataLimite;
+          } catch {
+            return false;
+          }
+        });
+      }
+      
+      // Filtra por nota mínima
+      if (notaMinima > 0) {
+        dadosFiltrados = dadosFiltrados.filter(item => 
+          item.nota !== null && item.nota >= notaMinima
+        );
+      }
+      
+      // Filtra por palavra-chave
+      if (palavraChave) {
+        dadosFiltrados = dadosFiltrados.filter(item => 
+          item.texto.toLowerCase().includes(palavraChave) ||
+          item.palavras.some(p => p.includes(palavraChave))
+        );
+      }
+      
+      // Atualiza UI
+      atualizarUI(dadosFiltrados, unidade);
+    }
+
+    // Atualizar interface
+    function atualizarUI(dadosFiltrados, unidadeSelecionada) {
+      // Atualiza cabeçalho
+      elements.unidadeSelecionada.textContent = unidadeSelecionada === 'todas' 
+        ? 'Todas as unidades' 
+        : unidadeSelecionada;
+      
+      // Calcula estatísticas
+      const avaliacoes = dadosFiltrados.filter(item => item.nota !== null);
+      const comentarios = dadosFiltrados.filter(item => item.texto);
+      const notas10 = avaliacoes.filter(item => item.nota === 10).length;
+      
+      elements.totalAvaliacoes.textContent = avaliacoes.length;
+      elements.totalComentarios.textContent = comentarios.length;
+      elements.totalComentariosHeader.textContent = `${dadosFiltrados.length} itens`;
+      
+      if (avaliacoes.length > 0) {
+        const media = avaliacoes.reduce((sum, item) => sum + item.nota, 0) / avaliacoes.length;
+        elements.mediaAvaliacoes.textContent = media.toFixed(1);
+        elements.percentual10.textContent = `${Math.round((notas10 / avaliacoes.length) * 100)}%`;
+      } else {
+        elements.mediaAvaliacoes.textContent = 'N/A';
+        elements.percentual10.textContent = '0%';
+      }
+      
+      // Atualiza gráfico
+      atualizarGraficoNotas(avaliacoes);
+      
+      // Atualiza nuvem de palavras
+      atualizarNuvemPalavras(comentarios);
+      
+      // Atualiza lista de comentários
+      atualizarComentarios(dadosFiltrados);
+    }
+
+    // Atualizar gráfico de notas
+    function atualizarGraficoNotas(avaliacoes = []) {
+      const contagemNotas = Array(11).fill(0);
+      avaliacoes.forEach(item => {
+        if (item.nota !== null && item.nota >= 0 && item.nota <= 10) {
+          contagemNotas[Math.floor(item.nota)]++;
+        }
+      });
+      
+      const labels = contagemNotas.map((_, i) => `${i} ★`);
+      
+      if (!notasChart) {
+        const ctx = elements.notasChart.getContext('2d');
+        notasChart = new Chart(ctx, {
+          type: currentChartType,
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Quantidade de Avaliações',
+              data: contagemNotas,
+              backgroundColor: '#4B0082',
+              borderColor: '#6a0099',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: currentChartType === 'bar' ? {
+              y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            } : undefined,
+            onClick: (e, elements) => {
+              if (elements.length > 0) {
+                const nota = elements[0].index;
+                elements.notaFilter.value = nota;
+                aplicarFiltros();
+              }
+            }
+          }
+        });
+      } else {
+        notasChart.data.labels = labels;
+        notasChart.data.datasets[0].data = contagemNotas;
+        notasChart.config.type = currentChartType;
+        notasChart.update();
+      }
+    }
+
+    // Atualizar nuvem de palavras
+    function atualizarNuvemPalavras(comentarios) {
+      if (comentarios.length === 0) {
+        elements.nuvemContainer.innerHTML = `
+          <div class="alert alert-info">
+            Nenhum comentário para gerar nuvem de palavras.
+          </div>
+        `;
+        return;
+      }
+      
+      // Conta frequência de palavras
+      const contagem = {};
+      comentarios.forEach(comentario => {
+        comentario.palavras.forEach(palavra => {
+          contagem[palavra] = (contagem[palavra] || 0) + 1;
+        });
+      });
+      
+      const palavrasParaNuvem = Object.entries(contagem)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 100);
+      
+      // Limpa canvas
+      const ctx = elements.nuvemCanvas.getContext('2d');
+      ctx.clearRect(0, 0, elements.nuvemCanvas.width, elements.nuvemCanvas.height);
+      
+      // Renderiza nuvem
+      WordCloud(elements.nuvemCanvas, {
+        ...config.wordCloud,
+        list: palavrasParaNuvem,
+        click: item => {
+          elements.palavraFilter.value = item[0];
+          aplicarFiltros();
+        }
+      });
+    }
+
+    // Atualizar lista de comentários
+    function atualizarComentarios(dados) {
+      if (dados.length === 0) {
+        elements.comentariosLista.innerHTML = `
+          <div class="alert alert-info">
+            Nenhum item encontrado com os filtros atuais.
+          </div>
+        `;
+        return;
+      }
+      
+      elements.comentariosLista.innerHTML = dados.map(item => `
+        <div class="comentario">
+          ${item.nota !== null ? `<span class="nota-badge">${item.nota}</span>` : ''}
+          <span class="unidade-badge">${item.unidade}</span>
+          ${item.texto ? `<p class="comentario-texto">${item.texto}</p>` : '<p class="text-muted">(Sem comentário)</p>'}
+          <div class="comentario-data">
+            ${formatarData(item.data) || 'Data não informada'}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Resetar filtros
+    function resetarFiltros() {
+      elements.unidadeFilter.value = 'todas';
+      elements.periodoFilter.value = 'all';
+      elements.notaFilter.value = '0';
+      elements.palavraFilter.value = '';
+      aplicarFiltros();
+    }
+
+    // Exportar nuvem como imagem
+    function exportarNuvem() {
+      const link = document.createElement('a');
+      link.download = `nuvem-palavras-${elements.unidadeSelecionada.textContent.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0,10)}.png`;
+      link.href = elements.nuvemCanvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Mostrar/ocultar loading
+    function toggleLoading(show) {
+      elements.loadingNuvem.style.display = show ? 'flex' : 'none';
+      elements.loadingComentarios.style.display = show ? 'flex' : 'none';
+      elements.nuvemCanvas.style.display = show ? 'none' : 'block';
+    }
+
+    // Formatador de data
+    function formatarData(dataString) {
+      if (!dataString) return null;
+      
+      try {
+        // Tenta parsear no formato brasileiro (DD/MM/AAAA)
+        const parts = dataString.split('/');
+        if (parts.length === 3) {
+          const date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          if (!isNaN(date)) {
+            return date.toLocaleDateString('pt-BR');
+          }
+        }
+        
+        // Tenta parsear como ISO string
+        const date = new Date(dataString);
+        if (!isNaN(date)) {
+          return date.toLocaleDateString('pt-BR');
+        }
+      } catch {
+        return dataString;
+      }
+    }
+  </script>
+</body>
+</html>
